@@ -1,9 +1,11 @@
 import streamlit as st 
 import pickle
-import pandas as pd
 import os
+from io import BytesIO
+import requests
 import numpy as np
 import tensorflow as tf
+import pandas as pd
 from tensorflow.keras.preprocessing import image
 from tensorflow.keras.applications.resnet50 import ResNet50, preprocess_input
 from sklearn.metrics.pairwise import cosine_similarity
@@ -48,8 +50,14 @@ loaded_image_paths,loaded_class_labels, loaded_database_features = load_features
 # st.write(loaded_image_paths)
 
 # st.write('loaded features')
+def get_image(d):
+    url = d.loc[0,'img1']
+    r = requests.get(url)
+    return BytesIO(r.content)
 
-def find_similar_images(query_features, database_features,class_labels, image_paths, top_k=10):
+
+
+def find_similar_images(query_features, database_features,class_labels, image_paths,df, top_k=10):
     # Calculate cosine similarity between query and database images
     similarities = cosine_similarity([query_features], database_features)[0]
     # st.write(similarities)
@@ -72,11 +80,10 @@ def find_similar_images(query_features, database_features,class_labels, image_pa
     for key in dicti.keys():
         l.append(key)        
     d=df.query(f"sku in {l}")
-    for i in d['img1']:
-        st.markdown("![Alt Text](i)")
     for keys in dicti.keys():
+        i=str(keys)
         st.write("class:",keys,"similarity:",dicti[keys])
-        st.image(f"Database/{keys}/image_3.jpg",width=200)
+        st.image(get_image(d.query(f"sku=='{keys}'").reset_index(drop=True)))
     # st.write(dicti)
     # Display the results
     # print(f"Top {top_k} similar images:")
@@ -116,10 +123,10 @@ def extract_features(model, image_path):
 #     features = model.predict(img_array)
 #     return features.flatten()
 
+
 df=pd.read_csv('men_clothing_db.csv')
 df=df.iloc[:,1:5]
 df.columns=['sku','img1','img2','img3']
-
 if test_image is not None:
     model = EfficientNetB0(weights='imagenet', include_top=False, pooling='avg')
     # query_image_path = 'query/img_test1.jpeg'
@@ -130,7 +137,8 @@ if test_image is not None:
     query_features = extract_features(model, query_image_path)
     # st.write(query_features)
 
-    find_similar_images(query_features, loaded_database_features, loaded_class_labels, loaded_image_paths, top_k=5)
+    find_similar_images(query_features, loaded_database_features, loaded_class_labels, loaded_image_paths,df, top_k=5)
     # st.write(output)
 else :
     st.write('waiting for test image....')
+
