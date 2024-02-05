@@ -5,6 +5,7 @@ from io import BytesIO
 import requests
 import numpy as np
 import tensorflow as tf
+from annoy import AnnoyIndex
 import pandas as pd
 from tensorflow.keras.preprocessing import image
 from tensorflow.keras.applications.resnet50 import ResNet50, preprocess_input
@@ -19,7 +20,7 @@ from tensorflow.keras.applications.efficientnet import EfficientNetB0, preproces
 # Set the app title 
 st.title('Image Matching App') 
 # Add a welcome message 
-st.write('Please uplaod a test image!') 
+st.write('Please upload a test image!') 
 # Create a text input 
 # widgetuser_input = st.text_input('Enter a custom message:', 'Hello, Streamlit!') 
 # Display the customized message 
@@ -54,6 +55,36 @@ def get_image(d):
     url = d.loc[0,'img1']
     r = requests.get(url)
     return BytesIO(r.content)
+
+def find_similar_images_ann(query_features, database_features,class_labels, image_paths,df, top_k=5, search_k=-1):
+    # Build AnnoyIndex for approximate nearest neighbor search
+    annoy_index = AnnoyIndex(query_features.shape[0], 'angular')
+    for i in range(database_features.shape[0]):
+        annoy_index.add_item(i, database_features[i])
+    annoy_index.build(10)  # Adjust the number of trees based on your dataset size
+
+    # Perform approximate nearest neighbor search
+    similar_indices = annoy_index.get_nns_by_vector(query_features, top_k, search_k=search_k)
+
+    dicti={}
+    for m,x in enumerate(similar_indices):
+        dicti[class_labels[x]]=0
+
+    for a,index in enumerate(similar_indices):
+        if dicti[class_labels[index]]==0:
+            for b,j in enumerate(similar_indices):
+                if class_labels[index]==class_labels[j]:
+                    dicti[class_labels[j]]+=cosine_similarity([query_features], [database_features[j]])[0][0]
+    sorted_dict = sorted(dicti.items(), key=lambda x:x[1], reverse=True)
+    dicti = dict(sorted_dict)
+    l=[]
+    for key in dicti.keys():
+        l.append(key)        
+    d=df.query(f"sku in {l}")
+    for keys in dicti.keys():
+        i=str(keys)
+        st.write("class:",keys,"similarity:",dicti[keys])
+        st.image(get_image(d.query(f"sku=='{keys}'").reset_index(drop=True)))
 
 
 
@@ -137,7 +168,7 @@ if test_image is not None:
     query_features = extract_features(model, query_image_path)
     # st.write(query_features)
 
-    find_similar_images(query_features, loaded_database_features, loaded_class_labels, loaded_image_paths,df, top_k=5)
+    find_similar_images_ann(query_features, loaded_database_features, loaded_class_labels, loaded_image_paths,df, top_k=100)
     # st.write(output)
 else :
     st.write('waiting for test image....')
