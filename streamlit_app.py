@@ -1,5 +1,6 @@
 import streamlit as st 
 import pickle
+import pandas as pd
 import os
 import numpy as np
 import tensorflow as tf
@@ -67,6 +68,12 @@ def find_similar_images(query_features, database_features,class_labels, image_pa
                     dicti[class_labels[j]]+=similarities[j]
     sorted_dict = sorted(dicti.items(), key=lambda x:x[1], reverse=True)
     dicti = dict(sorted_dict)
+    l=[]
+    for key in dicti.keys():
+        l.append(key)        
+    d=df.query(f"sku in {l}")
+    for i in d['img1']:
+        st.markdown("![Alt Text](i)")
     for keys in dicti.keys():
         st.write("class:",keys,"similarity:",dicti[keys])
         st.image(f"Database/{keys}/image_3.jpg",width=200)
@@ -109,7 +116,9 @@ def extract_features(model, image_path):
 #     features = model.predict(img_array)
 #     return features.flatten()
 
-
+df=pd.read_csv('men_clothing_db.csv')
+df=df.iloc[:,1:5]
+df.columns=['sku','img1','img2','img3']
 
 if test_image is not None:
     model = EfficientNetB0(weights='imagenet', include_top=False, pooling='avg')
